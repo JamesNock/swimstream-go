@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 )
 
 type TimingEvent struct {
@@ -32,6 +33,29 @@ func (e TimingEvent) Valid() bool {
 	return true
 }
 
+func timingEventsHandler(w http.ResponseWriter, r *http.Request) {
+
+    if r.Method != http.MethodPost {
+        w.Header().Set("Allow", http.MethodPost)
+        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+    decoder := json.NewDecoder(r.Body)
+    decoder.DisallowUnknownFields()
+
+    var event TimingEvent
+    if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+        http.Error(w, "invalid JSON", http.StatusBadRequest)
+        return
+    }
+    if !event.Valid() {
+        http.Error(w, "invalid timing event", http.StatusBadRequest)
+        return
+    }
+    w.WriteHeader(http.StatusAccepted)
+}
+
 func main() {
 	input := `{
         "meet_id": "sussex-2027",
@@ -51,4 +75,8 @@ func main() {
 	}
 
 	fmt.Printf("%+v\n", event)
+
+	http.HandleFunc("POST /timing-events", timingEventsHandler)
+
+    http.ListenAndServe(":8080", nil)
 }
